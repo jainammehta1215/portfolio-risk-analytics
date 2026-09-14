@@ -1,6 +1,8 @@
 # Portfolio Risk & Performance Analytics Dashboard
 
-**Asset-allocation track · Project 1 of 6**
+**Asset-allocation track · Project 1 of 6** · reporting layer for the rest of the series · see
+[Project 3, Portfolio Optimisation](https://github.com/jainammehta1215/portfolio-optimisation) for
+the allocation side
 
 Give it tickers, weights and a benchmark. It produces the monthly report an institutional risk
 committee expects, with the one chart most retail tools never show: how much of the portfolio's
@@ -26,8 +28,9 @@ notebook and a single self-contained HTML dashboard.
 
 * **Monthly client and committee reporting** at asset managers and multi-family offices: the
   performance table, drawdown history and risk-contribution chart are the standard pack.
-* **Risk budgeting:** the Euler decomposition here is the same arithmetic that drives risk-parity
-  and risk-budgeted allocation (Project 4 in this track).
+* **Risk budgeting:** the Euler decomposition here is the same arithmetic that the risk-parity
+  optimiser in [Project 3](https://github.com/jainammehta1215/portfolio-optimisation) inverts, and
+  that Project 4 builds on.
 * **Pre-trade checks:** the what-if block answers "if I move 5% from gold to duration, what
   happens to ex-ante vol and to who owns the risk?" before the order goes in.
 * **Hedge validation:** correlation on the benchmark's worst days tells you whether a sleeve
@@ -189,9 +192,15 @@ Or open the notebook in Colab and Run all.
 
 ## Asset-allocation track
 
-1. **Portfolio Risk & Performance Analytics Dashboard** ← this repo
-2. Multi-Factor Exposure Analyser (Fama-French)
-3. Portfolio Optimisation: Mean-Variance, Black-Litterman, Robust Methods — [done](https://github.com/jainammehta1215/portfolio-optimisation)
-4. Risk Parity and Hierarchical Risk Parity
-5. Macro Nowcasting and Recession Probability
-6. Yield Curve Construction and Fixed-Income Immunisation
+Six projects that build one capability each and share a reporting layer. Completed ones are linked.
+
+| # | Project | What it adds |
+|---|---|---|
+| 1 | **Portfolio Risk & Performance Analytics Dashboard** (this repo) | Where the risk sits: Euler decomposition, benchmark-relative statistics, stress scenarios, HTML dashboard |
+| 2 | Multi-Factor Exposure Analyser (Fama-French) | Why assets co-move: factor betas, alpha after factor adjustment, style drift |
+| 3 | [Portfolio Optimisation: Mean-Variance, Black-Litterman and Robust Methods](https://github.com/jainammehta1215/portfolio-optimisation) | What weights to hold: Markowitz and its fixes, tested out of sample net of costs |
+| 4 | Risk Parity and Hierarchical Risk Parity | Allocating by risk instead of capital; clustering instead of matrix inversion |
+| 5 | Macro Nowcasting and Recession Probability | The regime the allocation lives in: yield-curve probit, dynamic factor model, real-time vintages |
+| 6 | Yield Curve Construction and Fixed-Income Immunisation | The rates side: bootstrapping, Nelson-Siegel, key-rate durations, liability matching |
+
+A master repository will consolidate all six with a shared core once the track is complete.
