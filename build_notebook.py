@@ -33,8 +33,9 @@ The central chart is *weight vs share of risk*. In the default 9-ETF portfolio, 
 carries 7% of the risk while 10% in gold carries 17%. Equal-looking allocations routinely hide
 concentrated risk, and that gap is what this tool is for.
 
-**Data:** Yahoo Finance (adjusted prices), FRED (3-month T-bill). Any Yahoo symbol works; prices
-are converted to a base currency automatically.
+**Data:** Yahoo Finance (adjusted prices), FRED (local short rates). Market presets for US, India,
+UK, euro area, Japan and UAE set the currency, risk-free rate, benchmark and stress windows in one
+word; any Yahoo symbol works in any portfolio.
 """)
 
 md("## 1. Setup")
@@ -90,8 +91,8 @@ portfolio-risk-analytics/
 ORDER = ["__init__", "config", "data", "metrics", "risk", "plots", "report"]
 BLURB = {
     "__init__": "Package version.",
-    "config": "Portfolio and benchmark as `ticker -> weight` dicts (the benchmark can be a blend), an asset-class map for grouping, historical stress windows, and dashboard settings (rebalance frequency, rolling windows, VaR level).",
-    "data": "Downloads with retry and CSV caching, cross-exchange calendar alignment, conversion to a base currency via Yahoo FX crosses, FRED risk-free series, a quality gate that reports what it changed, and a synthetic fallback for offline runs.",
+    "config": "Portfolio and benchmark as `ticker -> weight` dicts (the benchmark can be a blend), an asset-class map for grouping, dashboard settings, and **market presets** (US, IN, UK, EU, JP, AE) that bundle currency, a FRED risk-free series, a default benchmark and local stress windows.",
+    "data": "Downloads with retry and CSV caching, cross-exchange calendar alignment, repair of self-reversing bad prints (Yahoo occasionally publishes a −90%/+900% pair that would wreck every statistic), conversion to a base currency via Yahoo FX crosses, FRED risk-free series, a quality gate that reports everything it changed, and a synthetic fallback for offline runs.",
     "metrics": "Every statistic in the report, computed on daily returns with the daily T-bill series as the risk-free rate. Includes a drawdown episode table (peak / trough / recovery dates and durations), monthly and annual tables, CAPM beta and alpha with a t-stat, tracking error, information ratio and capture ratios.",
     "risk": "Portfolio simulation with either buy-and-hold drift or periodic rebalancing (with turnover accounting), Euler risk decomposition (marginal, component and percentage contributions, beta to portfolio, diversification ratio), rolling risk shares using drifted holdings, what-if analysis, historical stress tests and calm-vs-stress correlation.",
     "plots": "One function per figure; consistent style; nothing calls `plt.show()`.",
@@ -106,7 +107,7 @@ import importlib, riskdash
 for m in ["config", "data", "metrics", "risk", "plots", "report"]:
     importlib.reload(importlib.import_module(f"riskdash.{m}"))
 from riskdash import data, metrics as met, risk, plots, report
-from riskdash.config import PORTFOLIO, BENCHMARK, BENCHMARK_NAME, ASSET_CLASS, STRESS_SCENARIOS, DATA, DASH
+from riskdash.config import PORTFOLIO, BENCHMARK, BENCHMARK_NAME, ASSET_CLASS, STRESS_SCENARIOS, DATA, DASH, DashboardConfig, market_preset, MARKETS
 import numpy as np, pandas as pd, matplotlib.pyplot as plt
 plots.set_style()
 pd.set_option("display.width", 200); pd.set_option("display.max_columns", 40); pd.set_option("display.precision", 4)
@@ -116,26 +117,47 @@ print("riskdash", riskdash.__version__)
 md(r"""
 ## 3. Define the portfolio
 
-Edit the dicts below (or `config.py`) for your own book. Weights are normalised to one. The
-benchmark can be a single ticker (`{"SPY": 1}`) or a blend. Any Yahoo Finance symbol works,
-including non-US listings with their suffix (`RELIANCE.NS`, `HSBA.L`); prices are converted to
-USD before anything is computed.
+**Pick a market, then list your holdings.** The market preset sets the base currency, a local
+risk-free rate from FRED, a default benchmark and the stress windows that matter locally:
+
+| `MARKET` | Currency | Risk-free | Default benchmark | Ticker suffix |
+|---|---|---|---|---|
+| `US` | USD | 3-month T-bill | 60/40 SPY/AGG | none |
+| `IN` | INR | RBI call rate | Nifty 50 (NIFTYBEES.NS) | `.NS` / `.BO` |
+| `UK` | GBP | 3-month interbank | FTSE 100 (ISF.L) | `.L` |
+| `EU` | EUR | 3-month Euribor | Euro Stoxx 50 (EXW1.DE) | `.DE` `.PA` `.MI` `.AS` |
+| `JP` | JPY | 3-month interbank | Nikkei 225 (1321.T) | `.T` |
+| `AE` | USD (peg) | US T-bill | MSCI UAE (UAE) | `.AE` |
+
+Weights are normalised to one, so quantities × price work as well as percentages. Any holding
+from any market can go in any portfolio; prices are converted to the preset's currency first.
 """)
 code(r"""
-portfolio = dict(PORTFOLIO)              # e.g. {"AAPL": 0.25, "MSFT": 0.25, "TLT": 0.5}
-benchmark = dict(BENCHMARK)
-benchmark_name = BENCHMARK_NAME
-asset_class = dict(ASSET_CLASS)          # optional grouping for exposure / risk aggregation
-REBALANCE = DASH.rebalance               # "ME" monthly, "QE" quarterly, None = buy-and-hold
+MARKET = "US"                                   # "US" | "IN" | "UK" | "EU" | "JP" | "AE"
+preset = market_preset(MARKET)
+
+# ---- your holdings: ticker -> weight (or current value; normalised automatically)
+portfolio = dict(PORTFOLIO)                     # US multi-asset example
+# portfolio = {"RELIANCE.NS": 25000, "HDFCBANK.NS": 18000, "TCS.NS": 15000, "GOLDBEES.NS": 12000}   # IN example (values in INR)
+
+benchmark = dict(preset.benchmark)              # or your own, e.g. {"SPY": 1.0}
+benchmark_name = preset.benchmark_name
+asset_class = dict(ASSET_CLASS)                 # optional grouping; unmapped tickers show as "Other"
+scenarios = dict(preset.scenarios)
+data_cfg = preset.data_config(DATA)             # currency + risk-free + start date for this market
+REBALANCE = DASH.rebalance                      # "ME" monthly, "QE" quarterly, None = buy-and-hold
 USE_SYNTHETIC = False
 
-pd.Series(portfolio, name="weight").to_frame().T.style.format("{:.0%}")
+if MARKET != "US" and portfolio == PORTFOLIO:
+    print("NOTE: MARKET is", MARKET, "but the portfolio is still the US example; replace it with your holdings.")
+print(f"{preset.name} | currency {data_cfg.base_currency} | risk-free: {preset.rf_note} | benchmark: {benchmark_name} | data from {data_cfg.start}")
+pd.Series(portfolio, name="weight").pipe(lambda s: s / s.sum()).to_frame().T.style.format("{:.1%}")
 """)
 
 md("## 4. Data collection and quality checks")
 code(r"""
 t0 = time.time()
-D = data.load_all(list(portfolio) + list(benchmark), DATA, use_synthetic=USE_SYNTHETIC)
+D = data.load_all(list(portfolio) + list(benchmark), data_cfg, use_synthetic=USE_SYNTHETIC)
 returns, rf, prices = D["returns"], D["rf"], D["prices"]
 print(f"loaded in {time.time()-t0:.1f}s | {prices.shape[0]} days x {prices.shape[1]} tickers | {prices.index[0].date()} -> {prices.index[-1].date()}")
 print("issues:", D["issues"] or "none")
@@ -148,7 +170,8 @@ display(desc.style.format({"ann_return": "{:.1%}", "ann_vol": "{:.1%}", "max_dra
 md("## 5. Run the analytics")
 code(r"""
 t0 = time.time()
-R = risk.run_dashboard(returns, rf, portfolio, benchmark, benchmark_name, asset_class, DASH)
+dash_cfg = DashboardConfig(**{**DASH.__dict__, "rebalance": REBALANCE})
+R = risk.run_dashboard(returns, rf, portfolio, benchmark, benchmark_name, asset_class, dash_cfg, scenarios)
 print(f"computed in {time.time()-t0:.1f}s | {R['portfolio'].index[0].date()} -> {R['portfolio'].index[-1].date()}")
 summary = R["summary"]
 summary.to_csv("outputs/tables/summary.csv")

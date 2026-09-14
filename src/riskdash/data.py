@@ -103,6 +103,36 @@ def load_prices(tickers: Iterable[str],
     return prices
 
 
+def repair_bad_prints(prices: pd.DataFrame, threshold: float = 0.5,
+                      lookahead: int = 5, tol: float = 0.2) -> Tuple[pd.DataFrame, Dict[str, int]]:
+    """
+    Blank out price spikes that reverse within `lookahead` days.
+
+    A genuine crash does not un-crash in a week; an unadjusted split does not
+    reverse at all. Only the self-reversing pattern is treated as an error.
+    Returns the repaired frame and a per-ticker count of repaired prints.
+    """
+    px = prices.copy()
+    fixed: Dict[str, int] = {}
+    for t in px.columns:
+        s = px[t]
+        r = s.pct_change()
+        bad = r.index[r.abs() > threshold]
+        for d in bad:
+            i = s.index.get_loc(d)
+            base = s.iloc[i - 1]
+            if not np.isfinite(base) or base <= 0:
+                continue
+            window = s.iloc[i: i + lookahead + 1]
+            back = (window / base - 1).abs()
+            hits = np.where(back.values[1:] < tol)[0]
+            if len(hits):
+                j = i + 1 + hits[0]                      # first index back near the base
+                px.loc[s.index[i]: s.index[j - 1], t] = np.nan
+                fixed[t] = fixed.get(t, 0) + (j - i)
+    return px, fixed
+
+
 def clean_prices(prices: pd.DataFrame,
                  cfg: DataConfig = DATA) -> Tuple[pd.DataFrame, Dict[str, str]]:
     """
@@ -131,11 +161,18 @@ def clean_prices(prices: pd.DataFrame,
         issues["_calendar"] = f"dropped {dropped_days} days when <50% of tickers traded"
     px = px[row_cov >= 0.5]
 
-    # 2. Fill the remaining isolated gaps (single-exchange holidays, bad ticks).
+    # 2. Repair self-reversing bad prints: a move beyond +/-50% that is undone
+    #    within 5 days (cumulative move back within 20% of the start) is a data
+    #    error, not a market event. Blank the bad prices so step 3 fills them.
+    px, glitches = repair_bad_prints(px)
+    for t, n in glitches.items():
+        issues[t] = issues.get(t, "") + f"repaired {n} bad print(s); "
+
+    # 3. Fill the remaining isolated gaps (single-exchange holidays, bad ticks).
     gap_counts = px.isna().sum()
     px = px.ffill(limit=5)
 
-    # 3. Tickers with insufficient history (listed after `start`, delisted, etc).
+    # 4. Tickers with insufficient history (listed after `start`, delisted, etc).
     coverage = px.notna().mean()
     thin = coverage[coverage < cfg.min_history_fraction]
     for t, c in thin.items():

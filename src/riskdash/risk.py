@@ -198,7 +198,7 @@ def stress_test(returns: pd.DataFrame, weights: pd.Series, bench: pd.Series,
     rows = []
     for name, (a, b) in scenarios.items():
         seg = returns.loc[a:b, weights.index]
-        if len(seg) < 3:
+        if len(seg) < 2:
             continue
         port, _ = _segment(weights.values, seg)
         bseg = bench.loc[a:b]
@@ -251,7 +251,8 @@ def exposure_by_group(weights: pd.Series, mapping: Dict[str, str]) -> pd.Series:
 # --------------------------------------------------------------------------- #
 def run_dashboard(returns: pd.DataFrame, rf: pd.Series, portfolio: Dict[str, float],
                   benchmark: Dict[str, float], benchmark_name: str,
-                  asset_class: Dict[str, str], cfg: DashboardConfig = DASH) -> Dict[str, object]:
+                  asset_class: Dict[str, str], cfg: DashboardConfig = DASH,
+                  scenarios: Dict[str, tuple] = STRESS_SCENARIOS) -> Dict[str, object]:
     """Compute everything the dashboard shows and return it in one dict."""
     w = normalise_weights(portfolio)
     port, hold, traded = build_series(returns, portfolio, cfg.rebalance, "Portfolio")
@@ -293,7 +294,7 @@ def run_dashboard(returns: pd.DataFrame, rf: pd.Series, portfolio: Dict[str, flo
         bench_drawdowns=met.drawdown_table(bench, cfg.top_drawdowns),
         monthly=met.monthly_table(port), annual=pd.DataFrame({"Portfolio": met.annual_returns(port),
                                                              benchmark_name: met.annual_returns(bench)}),
-        stress=stress_test(returns, w, bench),
+        stress=stress_test(returns, w, bench, scenarios),
         regimes=correlation_regimes(returns[w.index].loc[idx], bench),
         rolling_risk=rolling_risk_contribution(hold, returns[w.index], cfg.cov_window),
         benchmark_name=benchmark_name,

@@ -103,7 +103,7 @@ failures log loudly rather than defaulting silently.
 
 ## 9. Data cleaning and feature engineering
 
-Simple returns (they aggregate linearly across positions). Portfolio series built two ways
+Self-reversing bad prints (a −90%/+900% pair within a few days) are detected and repaired before anything else; Yahoo publishes these occasionally and one of them wrecks every statistic downstream. Simple returns (they aggregate linearly across positions). Portfolio series built two ways
 (rebalanced and buy-and-hold). Trailing 1-year annualised covariance for decomposition. Monthly
 aggregation for capture ratios and the hit rate. Benchmark worst-decile days as the stress regime.
 Absolute return over fixed date windows for scenarios, using today's weights.
@@ -157,15 +157,26 @@ front end with weight sliders · liquidity-adjusted risk and a limits framework.
 
 ## 15. Using your own portfolio
 
+Pick a market preset, then list holdings as weights or current values:
+
 ```python
-portfolio = {"AAPL": 0.25, "MSFT": 0.25, "RELIANCE.NS": 0.20, "TLT": 0.30}
-benchmark = {"SPY": 1.0}
+MARKET = "IN"
+portfolio = {"RELIANCE.NS": 25000, "HDFCBANK.NS": 18000, "TCS.NS": 15000, "GOLDBEES.NS": 12000}
 ```
 
-Edit the dicts in Section 3 of the notebook (or `config.py`). Non-US symbols use Yahoo's suffix
-and are converted to USD. Tickers listed after 2010 are dropped with a message; set
-`DataConfig.start` later to keep them. Set `REBALANCE = None` for buy-and-hold, `"QE"` for
-quarterly.
+| `MARKET` | Currency | Risk-free (FRED) | Default benchmark |
+|---|---|---|---|
+| `US` | USD | 3-month T-bill | 60/40 SPY/AGG |
+| `IN` | INR | RBI call money rate | Nifty 50 (NIFTYBEES.NS) |
+| `UK` | GBP | 3-month interbank | FTSE 100 (ISF.L) |
+| `EU` | EUR | 3-month Euribor | Euro Stoxx 50 (EXW1.DE) |
+| `JP` | JPY | 3-month interbank | Nikkei 225 (1321.T) |
+| `AE` | USD (AED peg) | US T-bill | MSCI UAE (UAE) |
+
+Each preset also carries its own stress windows (for India: taper tantrum, demonetisation, IL&FS,
+election result day 2024, the 2024–25 PSU correction, and so on). Holdings from any market can be
+mixed; prices are converted to the preset currency. Tickers listed after the start date are dropped
+with a message; set `DataConfig.start` later to keep them. `REBALANCE = None` gives buy-and-hold.
 
 ## Running it
 
